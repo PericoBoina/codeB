@@ -1,5 +1,5 @@
-#ifndef MPU6500_H
-#define MPU6500_H
+#ifndef __MPU6500_H__
+#define __MPU6500_H__
 
 #include "driver/i2c.h"
 #include "esp_err.h"
@@ -22,6 +22,8 @@ public:
     esp_err_t readAccel(float &ax, float &ay, float &az);
     esp_err_t readGyro(float &gx, float &gy, float &gz);
     esp_err_t calibrateGyro(float &offset_x, float &offset_y, float &offset_z);
+    esp_err_t initialize(float &offset_x, float &offset_y, float &offset_z);
+    void updateAngles(float &angle_x, float &angle_y, float &angle_z, float offset_x, float offset_y, float offset_z, TickType_t &last_wake_time);
 
 private:
     i2c_port_t i2c_port;
@@ -33,4 +35,4 @@ private:
     esp_err_t readByte(uint8_t reg, uint8_t &data);
 };
 
-#endif // MPU6500_H
+#endif // __MPU6500_H__

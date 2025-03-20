@@ -1,6 +1,7 @@
 #include "mpu6500.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include <cmath>
 
 static const char *TAG = "MPU6500";
 
@@ -125,63 +126,9 @@ esp_err_t MPU6500::readGyro(float &gx, float &gy, float &gz)
     return ESP_OK;
 }
 
-esp_err_t MPU6500::writeByte(uint8_t reg, uint8_t data)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    if (!cmd)
-        return ESP_FAIL;
-
-    esp_err_t ret = i2c_master_start(cmd);
-    ret |= i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_WRITE, true);
-    ret |= i2c_master_write_byte(cmd, reg, true);
-    ret |= i2c_master_write_byte(cmd, data, true);
-    ret |= i2c_master_stop(cmd);
-
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Fallo de escritura: %s", esp_err_to_name(ret));
-    }
-
-    ret |= i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
-
-esp_err_t MPU6500::readBytes(uint8_t reg, uint8_t *data, size_t length)
-{
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    if (!cmd)
-        return ESP_FAIL;
-
-    esp_err_t ret = i2c_master_start(cmd);
-    ret |= i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_WRITE, true);
-    ret |= i2c_master_write_byte(cmd, reg, true);
-
-    ret |= i2c_master_start(cmd);
-    ret |= i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_READ, true);
-    ret |= i2c_master_read(cmd, data, length, I2C_MASTER_LAST_NACK);
-    ret |= i2c_master_stop(cmd);
-
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Fallo de lectura: %s", esp_err_to_name(ret));
-    }
-
-    ret |= i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000));
-    i2c_cmd_link_delete(cmd);
-
-    return ret;
-}
-
-esp_err_t MPU6500::readByte(uint8_t reg, uint8_t &data)
-{
-    return readBytes(reg, &data, 1);
-}
-
 esp_err_t MPU6500::calibrateGyro(float &offset_x, float &offset_y, float &offset_z)
 {
-    const int num_samples = 1000;
+    const int num_samples = 2000;
     float sum_x = 0.0f, sum_y = 0.0f, sum_z = 0.0f;
     float gx, gy, gz;
 
@@ -202,4 +149,93 @@ esp_err_t MPU6500::calibrateGyro(float &offset_x, float &offset_y, float &offset
     offset_z = sum_z / num_samples;
 
     return ESP_OK;
+}
+
+esp_err_t MPU6500::initialize(float &offset_x, float &offset_y, float &offset_z)
+{
+    if (init() != ESP_OK)
+    {
+        ESP_LOGE("MPU6500", "No se pudo inicializar el MPU6500");
+        return ESP_FAIL;
+    }
+    if (calibrateGyro(offset_x, offset_y, offset_z) != ESP_OK)
+    {
+        ESP_LOGE("MPU6500", "No se pudo calibrar el giroscopio");
+        return ESP_FAIL;
+    }
+    ESP_LOGI("MPU6500", "Calibración completada: Offset [°/s]: X=%.2f Y=%.2f Z=%.2f", offset_x, offset_y, offset_z);
+    return ESP_OK;
+}
+
+void MPU6500::updateAngles(float &angle_x, float &angle_y, float &angle_z, float offset_x, float offset_y, float offset_z, TickType_t &last_wake_time)
+{
+    float ax, ay, az;
+    float gx, gy, gz;
+
+    if (readAccel(ax, ay, az) == ESP_OK)
+    {
+        // ESP_LOGI("MPU6500", "Accel [g]: X=%.2f Y=%.2f Z=%.2f", ax, ay, az);
+    }
+
+    if (readGyro(gx, gy, gz) == ESP_OK)
+    {
+        gx -= offset_x;
+        gy -= offset_y;
+        gz -= offset_z;
+
+        // Calcular el dt en segundos
+        TickType_t current_time = xTaskGetTickCount();
+        float dt = (current_time - last_wake_time) * portTICK_PERIOD_MS / 1000.0f;
+        last_wake_time = current_time;
+
+        // Integrar las velocidades angulares para obtener los ángulos
+        angle_x += gx * dt;
+        angle_y += gy * dt;
+        angle_z += gz * dt;
+
+        // Filtro complementario
+        float accel_angle_x = atan2(ay, az) * 180 / M_PI;
+        float accel_angle_y = atan2(-ax, sqrt(ay * ay + az * az)) * 180 / M_PI;
+
+        const float alpha = 0.98;
+        angle_x = alpha * angle_x + (1 - alpha) * accel_angle_x;
+        angle_y = alpha * angle_y + (1 - alpha) * accel_angle_y;
+    }
+}
+
+esp_err_t MPU6500::writeByte(uint8_t reg, uint8_t data)
+{
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_write_byte(cmd, data, true);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000));
+    i2c_cmd_link_delete(cmd);
+    return ret;
+}
+
+esp_err_t MPU6500::readBytes(uint8_t reg, uint8_t *data, size_t length)
+{
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(cmd, reg, true);
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (MPU6500_ADDRESS << 1) | I2C_MASTER_READ, true);
+    if (length > 1)
+    {
+        i2c_master_read(cmd, data, length - 1, I2C_MASTER_ACK);
+    }
+    i2c_master_read_byte(cmd, data + length - 1, I2C_MASTER_NACK);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_port, cmd, pdMS_TO_TICKS(1000));
+    i2c_cmd_link_delete(cmd);
+    return ret;
+}
+
+esp_err_t MPU6500::readByte(uint8_t reg, uint8_t &data)
+{
+    return readBytes(reg, &data, 1);
 }
