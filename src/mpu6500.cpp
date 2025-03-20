@@ -8,7 +8,6 @@ static const char *TAG = "MPU6500";
 constexpr float ACCEL_SCALE = 16384.0f; // ±2g -> 16384 LSB/g
 constexpr float GYRO_SCALE = 131.0f;    // ±250 °/s -> 131 LSB/(°/s)
 
-
 MPU6500::MPU6500(i2c_port_t port, gpio_num_t sda, gpio_num_t scl)
     : i2c_port(port), sda_pin(sda), scl_pin(scl) {}
 
@@ -40,7 +39,6 @@ esp_err_t MPU6500::init()
         return err;
     }
 
-    
     uint8_t who_am_i = 0;
     err = readByte(WHO_AM_I_REG, who_am_i);
     if (err != ESP_OK)
@@ -179,4 +177,29 @@ esp_err_t MPU6500::readBytes(uint8_t reg, uint8_t *data, size_t length)
 esp_err_t MPU6500::readByte(uint8_t reg, uint8_t &data)
 {
     return readBytes(reg, &data, 1);
+}
+
+esp_err_t MPU6500::calibrateGyro(float &offset_x, float &offset_y, float &offset_z)
+{
+    const int num_samples = 1000;
+    float sum_x = 0.0f, sum_y = 0.0f, sum_z = 0.0f;
+    float gx, gy, gz;
+
+    for (int i = 0; i < num_samples; ++i)
+    {
+        if (readGyro(gx, gy, gz) != ESP_OK)
+        {
+            return ESP_FAIL;
+        }
+        sum_x += gx;
+        sum_y += gy;
+        sum_z += gz;
+        vTaskDelay(pdMS_TO_TICKS(1)); // Esperar 1 ms entre lecturas
+    }
+
+    offset_x = sum_x / num_samples;
+    offset_y = sum_y / num_samples;
+    offset_z = sum_z / num_samples;
+
+    return ESP_OK;
 }

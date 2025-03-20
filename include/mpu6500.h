@@ -21,6 +21,7 @@ public:
     esp_err_t init();
     esp_err_t readAccel(float &ax, float &ay, float &az);
     esp_err_t readGyro(float &gx, float &gy, float &gz);
+    esp_err_t calibrateGyro(float &offset_x, float &offset_y, float &offset_z);
 
 private:
     i2c_port_t i2c_port;
