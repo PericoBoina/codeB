@@ -174,7 +174,10 @@ void MPU6500::updateAngles(float &angle_x, float &angle_y, float &angle_z, float
 
     if (readAccel(ax, ay, az) == ESP_OK)
     {
-        // ESP_LOGI("MPU6500", "Accel [g]: X=%.2f Y=%.2f Z=%.2f", ax, ay, az);
+        // Convertir de g a m/s^2
+        /*ax *= 9.81f;
+          ay *= 9.81f;
+          az *= 9.81f;*/
     }
 
     if (readGyro(gx, gy, gz) == ESP_OK)
