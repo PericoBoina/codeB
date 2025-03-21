@@ -149,6 +149,7 @@ esp_err_t MPU6500::calibrateGyro(float &offset_x, float &offset_y, float &offset
     offset_z = sum_z / num_samples;
 
     return ESP_OK;
+   
 }
 
 esp_err_t MPU6500::initialize(float &offset_x, float &offset_y, float &offset_z)
