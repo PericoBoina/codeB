@@ -10,7 +10,7 @@ WS2812::WS2812(gpio_num_t gpio_num, uint16_t num_leds)
     : gpio_num(gpio_num), num_leds(num_leds), rmt_channel(RMT_CHANNEL_0)
 {
     rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num, rmt_channel);
-    config.clk_div = 1; // Clock divider (80 MHz / 1 = 80 MHz)
+    config.clk_div = 1;
 
     esp_err_t err = rmt_config(&config);
     if (err != ESP_OK)
@@ -26,7 +26,7 @@ WS2812::WS2812(gpio_num_t gpio_num, uint16_t num_leds)
         return;
     }
 
-    leds = (uint8_t *)malloc(num_leds * 3); // 3 bytes por LED (RGB)
+    leds = (uint8_t *)malloc(num_leds * 3);
     if (!leds)
     {
         ESP_LOGE(TAG, "Error al asignar memoria para los LEDs");
@@ -35,11 +35,6 @@ WS2812::WS2812(gpio_num_t gpio_num, uint16_t num_leds)
     memset(leds, 0, num_leds * 3);
 }
 
-WS2812::~WS2812()
-{
-    free(leds);
-    rmt_driver_uninstall(rmt_channel);
-}
 
 esp_err_t WS2812::setPixel(uint16_t index, uint8_t red, uint8_t green, uint8_t blue)
 {

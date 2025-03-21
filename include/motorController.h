@@ -1,31 +1,26 @@
-#ifndef __MOTORCONTROLLER_H__
-#define __MOTORCONTROLLER_H__
+#ifndef MOTORCONTROLLER_H
+#define MOTORCONTROLLER_H
 
-#include <driver/gpio.h>
-#include <driver/ledc.h>
+#include "driver/gpio.h"
+#include "driver/ledc.h"
+#include "esp_err.h"
 
-class motorController
+class MotorController
 {
 public:
-    motorController(gpio_num_t leftA, gpio_num_t leftB, gpio_num_t leftPwm,
-                    gpio_num_t rightA, gpio_num_t rightB, gpio_num_t rightPwm);
+    MotorController(gpio_num_t ain1, gpio_num_t ain2, gpio_num_t bin1, gpio_num_t bin2,
+                    gpio_num_t pwma, gpio_num_t pwmb);
 
-    void init();
-    void setSpeed(int32_t leftSpeed, int32_t rightSpeed);
+    esp_err_t init();                                       // Inicializa los pines y PWM
+    void motorLeft(int speed);                              // Controla el motor izquierdo
+    void motorRight(int speed);                             // Controla el motor derecho
+    void stop();                                            // Detiene ambos motores
+    void setSpeed(uint16_t leftSpeed, uint16_t rightSpeed); // Ajusta la velocidad de ambos motores
 
 private:
-    gpio_num_t leftPinA, leftPinB, leftPinPwm;
-    gpio_num_t rightPinA, rightPinB, rightPinPwm;
-
-    ledc_channel_t leftPwmChannel, rightPwmChannel;
-
-    typedef enum
-    {
-        DIR_FWD = 0,
-        DIR_BCK
-    } Direction;
-
-    Direction dirL, dirR;
+    gpio_num_t _ain1, _ain2, _bin1, _bin2, _pwma, _pwmb;
+    ledc_channel_config_t _ledc_channel_a, _ledc_channel_b;
 };
 
-#endif // __MOTORCONTROLLER_H__
+#endif
+
