@@ -15,12 +15,12 @@ public:
     void motorLeft(int speed);                              // Controla el motor izquierdo
     void motorRight(int speed);                             // Controla el motor derecho
     void stop();                                            // Detiene ambos motores
-    void setSpeed(uint16_t leftSpeed, uint16_t rightSpeed); // Ajusta la velocidad de ambos motores
 
 private:
     gpio_num_t _ain1, _ain2, _bin1, _bin2, _pwma, _pwmb;
-    ledc_channel_config_t _ledc_channel_a, _ledc_channel_b;
+    ledc_channel_t _leftPwmChannel, _rightPwmChannel;
+
+    int constrain(int value, int min, int max);
 };
 
 #endif
-

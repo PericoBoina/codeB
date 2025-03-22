@@ -207,6 +207,7 @@ void MPU6500::updateAngles(float &angle_x, float &angle_y, float &angle_z, float
     }
 }
 
+
 esp_err_t MPU6500::writeByte(uint8_t reg, uint8_t data)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
