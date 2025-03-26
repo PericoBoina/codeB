@@ -5,33 +5,27 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "motorController.h"
 #include "mpu6500.h"
 #include "ws2812.h"
-#include "motorController.h"
-
-#define BUTTON_GPIO GPIO_NUM_23
+#include "pid.h"
 
 static const char *TAG = "MAIN";
 
 MPU6500 imu(I2C_NUM_0, GPIO_NUM_21, GPIO_NUM_22);
-WS2812 led(GPIO_NUM_25, 8);
-MotorController motor(GPIO_NUM_16, GPIO_NUM_17, GPIO_NUM_18, GPIO_NUM_19, GPIO_NUM_12, GPIO_NUM_13);
-
-int last_button_state = 0;
-int current_button_state = 0;
+WS2812 led(GPIO_NUM_25, 1);
+MotorController motor(GPIO_NUM_16, GPIO_NUM_17, GPIO_NUM_19, GPIO_NUM_18, GPIO_NUM_12, GPIO_NUM_13);
+PID pid(3.5f, 0.00f, 0.0f); // kp, ki, kd
 
 extern "C" void app_main(void)
 {
-    gpio_config_t btn_conf = {};
-    btn_conf.intr_type = GPIO_INTR_DISABLE;
-    btn_conf.mode = GPIO_MODE_INPUT;
-    btn_conf.pin_bit_mask = (1ULL << BUTTON_GPIO);
-    btn_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    btn_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    gpio_config(&btn_conf);
-
     float offset_x = 0.0f, offset_y = 0.0f, offset_z = 0.0f;
     float angle_x = 0.0f, angle_y = 0.0f, angle_z = 0.0f;
+    float setpoint = 0.0f;
+
+    //Límites de velocidad
+    const int max_speed = 1600;  
+    const int min_speed = 650;  
 
     TickType_t last_wake_time = xTaskGetTickCount();
 
@@ -49,30 +43,58 @@ extern "C" void app_main(void)
 
     led.clear();
     led.show();
-
     imu.calibrateGyro(offset_x, offset_y, offset_z);
+
+    uint32_t last_time_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
 
     for (;;)
     {
-
-        current_button_state = gpio_get_level(BUTTON_GPIO);
-
-        if (current_button_state == 0 && last_button_state == 1)
-        {
-
-            ESP_LOGI(TAG, "Botón pulsado");
-            led.clear();
-            led.setPixel(0, 25, 0, 0);
-            led.show();
-            vTaskDelay(pdMS_TO_TICKS(1000));
-                }
+        led.clear();
+        led.setPixel(0, 25, 0, 0);
+        led.show();
 
         imu.updateAngles(angle_x, angle_y, angle_z, offset_x, offset_y, offset_z, last_wake_time);
-        ESP_LOGI(TAG, "Angle X: %.2f, Y:  %.2f, Z: %.2f", angle_x, angle_y, angle_z);
-        last_button_state = current_button_state;
+
+        uint32_t current_time_ms = xTaskGetTickCount() * portTICK_PERIOD_MS;
+        float dt = (current_time_ms - last_time_ms) / 1000.0f;
+        if (dt <= 0.0f) dt = 0.01f;
+        last_time_ms = current_time_ms;
+
+        float error = setpoint - angle_x;
+        float pid_output = pid.update(error, dt);
+        float output_scaled = pid_output * 100.0f;
+
+        if (output_scaled > max_speed) output_scaled = max_speed;
+        if (output_scaled < -max_speed) output_scaled = -max_speed;
+
+        int motor_speed = 0;
+
+        if (abs(output_scaled) >= min_speed)
+        {
+            motor_speed = static_cast<int>(output_scaled);
+        }
+
+        motor.motorLeft(motor_speed);
+        motor.motorRight(motor_speed);
         led.clear();
-        led.setPixel(0, 0, 25, 0);
+
+        if (motor_speed == 0)
+        {
+            led.setPixel(0, 0, 25, 0); // Verde (sin movimiento)
+        }
+        else if (motor_speed > 0)
+        {
+            led.setPixel(0, 0, 0, 25); // Azul (corrige adelante)
+        }
+        else
+        {
+            led.setPixel(0, 25, 0, 0); // Rojo (corrige atrás)
+        }
         led.show();
-        vTaskDelay(pdMS_TO_TICKS(10));
+
+        ESP_LOGI(TAG, "Error: %.2f | PID: %.5f | Escalado: %.2f | MotorSpeed: %d",
+                 error, pid_output, output_scaled, motor_speed);
+
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(10));
     }
 }
