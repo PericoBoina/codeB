@@ -25,7 +25,6 @@ void MotionController::initialize() {
 void MotionController::update() {
     TickType_t last_wake_time = xTaskGetTickCount();
 
-    for (;;) {
         led.clear();
         led.setPixel(0, 25, 0, 0);
         led.show();
@@ -62,8 +61,8 @@ void MotionController::update() {
         }
         led.show();
 
-        ESP_LOGI("MOTION", "Error: %.2f | PID: %.5f | Escalado: %.2f | MotorSpeed: %d", error, pid_output, output_scaled, motor_speed);
+        //ESP_LOGI("MOTION", "Error: %.2f | PID: %.5f | Escalado: %.2f | MotorSpeed: %d", error, pid_output, output_scaled, motor_speed);
 
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(10));
     }
-}
+

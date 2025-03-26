@@ -22,6 +22,7 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Inicializando MotionController...");
 
     motion.initialize();
+
     for (;;)
     {
         motion.update();
