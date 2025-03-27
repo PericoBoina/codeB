@@ -1,3 +1,4 @@
+// motion.h
 #ifndef MOTION_H
 #define MOTION_H
 
@@ -10,7 +11,8 @@
 #include "esp_log.h"
 #include <cmath>
 
-class MotionController {
+class MotionController
+{
 public:
     MotionController(MPU6500 &imu, MotorController &motor, WS2812 &led, PID &pid);
     void initialize();
@@ -21,8 +23,7 @@ private:
     MotorController &motor;
     WS2812 &led;
     PID &pid;
-    
-    float offset_x, offset_y, offset_z;
+
     float angle_x, angle_y, angle_z;
     float setpoint;
     int max_speed;
